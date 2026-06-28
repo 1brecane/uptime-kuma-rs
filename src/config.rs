@@ -51,8 +51,8 @@ fn default_retention_days() -> u32 {
 impl Config {
     /// Load configuration: optional `config.toml` overlaid by environment variables.
     pub fn load() -> Result<Self, AppError> {
-        use figment::providers::{Env, Format, Toml};
         use figment::Figment;
+        use figment::providers::{Env, Format, Toml};
 
         Figment::new()
             .merge(Toml::file("config.toml"))
