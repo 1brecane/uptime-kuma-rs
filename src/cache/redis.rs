@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 
 use crate::error::AppError;
@@ -18,7 +20,7 @@ impl RedisCache {
 
 #[async_trait]
 impl Cache for RedisCache {
-    async fn get_snapshot(&self) -> Option<Snapshot> {
+    async fn get_snapshot(&self) -> Option<Arc<Snapshot>> {
         todo!("GET + deserialize snapshot JSON")
     }
 

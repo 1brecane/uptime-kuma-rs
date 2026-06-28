@@ -1,0 +1,17 @@
+{
+  "config": { "slug": "homelab", "title": "Homelab Status" },
+  "incidents": [],
+  "maintenanceList": [],
+  "publicGroupList": [
+    {
+      "name": "Servizi",
+      "monitorList": [
+        { "id": 1, "name": "service-a", "type": "http", "sendUrl": 0 },
+        { "id": 2, "name": "service-b", "type": "ping", "sendUrl": 0 },
+        { "id": 3, "name": "service-c", "type": "http", "sendUrl": 0 },
+        { "id": 4, "name": "service-d", "type": "http", "sendUrl": 0 },
+        { "id": 5, "name": "service-e", "type": "http", "sendUrl": 0 }
+      ]
+    }
+  ]
+}

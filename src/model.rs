@@ -18,6 +18,8 @@ pub struct Monitor {
     /// i64 — SQLite/sqlx has no u64 codec; ids are small positive integers.
     pub id: i64,
     pub name: String,
+    /// Status-page group this monitor belongs to (e.g. "Servizi"); `None` if ungrouped.
+    pub group: Option<String>,
     pub status: MonitorStatus,
     /// `None` when down / unknown.
     pub latency_ms: Option<u32>,

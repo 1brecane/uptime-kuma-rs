@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use crate::error::AppError;
 use crate::model::{Incident, MonitorStatus};
 
+pub mod noop;
 pub mod sqlite;
 
 /// A single recorded heartbeat to be persisted (low-level §5b).
