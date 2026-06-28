@@ -20,8 +20,8 @@ mod tests {
 
     use chrono::Utc;
 
-    use crate::cache::memory::MemoryCache;
     use crate::cache::Cache;
+    use crate::cache::memory::MemoryCache;
     use crate::config::Config;
     use crate::model::{Monitor, MonitorStatus, Snapshot};
     use crate::store::noop::NoopStore;

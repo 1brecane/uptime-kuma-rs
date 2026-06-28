@@ -131,9 +131,10 @@ mod tests {
         let config: StatusPageConfigDto =
             serde_json::from_str(include_str!("../../tests/fixtures/status-page-config.json"))
                 .expect("config fixture parses");
-        let heartbeat: HeartbeatDto =
-            serde_json::from_str(include_str!("../../tests/fixtures/status-page-heartbeat.json"))
-                .expect("heartbeat fixture parses");
+        let heartbeat: HeartbeatDto = serde_json::from_str(include_str!(
+            "../../tests/fixtures/status-page-heartbeat.json"
+        ))
+        .expect("heartbeat fixture parses");
         (config, heartbeat)
     }
 
@@ -141,7 +142,12 @@ mod tests {
     fn maps_status_latency_and_group() {
         let (config, heartbeat) = load();
         let monitors = map_monitors(&config, &heartbeat);
-        let by_id = |id: i64| monitors.iter().find(|m| m.id == id).expect("monitor present");
+        let by_id = |id: i64| {
+            monitors
+                .iter()
+                .find(|m| m.id == id)
+                .expect("monitor present")
+        };
 
         assert_eq!(monitors.len(), 5);
 
