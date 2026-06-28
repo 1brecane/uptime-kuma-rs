@@ -50,7 +50,8 @@ Scaffolding and verification commands must invoke cargo via its full path
   - `tracing`, `tracing-subscriber`
   - `tower`, `tower-http` — features `cors`, `trace`, `timeout`
   - `sqlx` — features `sqlite`, `runtime-tokio`
-  - `redis` (`tokio-comp`) and/or `deadpool-redis`
+  - `redis` — feature `tokio-comp` (pooling via `deadpool-redis` deferred until the Redis cache
+    is actually implemented; the skeleton stub needs only the base client to compile)
   - `thiserror`
   - `arc-swap`
   - `async-trait`
