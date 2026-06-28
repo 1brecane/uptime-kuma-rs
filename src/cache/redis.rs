@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 
+use crate::error::AppError;
 use crate::model::Snapshot;
 
 use super::Cache;
@@ -21,7 +22,7 @@ impl Cache for RedisCache {
         todo!("GET + deserialize snapshot JSON")
     }
 
-    async fn put_snapshot(&self, snap: Snapshot) {
+    async fn put_snapshot(&self, snap: Snapshot) -> Result<(), AppError> {
         todo!("SET serialized snapshot JSON with TTL")
     }
 }

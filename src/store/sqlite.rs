@@ -23,7 +23,7 @@ impl HeartbeatStore for SqliteStore {
         todo!("upsert beats, dedup on (monitor_id, time)")
     }
 
-    async fn uptime(&self, monitor_id: u64, window: Window) -> Result<UptimeResult, AppError> {
+    async fn uptime(&self, monitor_id: i64, window: Window) -> Result<UptimeResult, AppError> {
         todo!("aggregate stored beats into ratio + coverage")
     }
 

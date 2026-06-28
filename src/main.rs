@@ -46,7 +46,7 @@ async fn main() {
         http: reqwest::Client::new(),
     };
 
-    poller::spawn(state.clone());
+    let _poll_handle = poller::spawn(state.clone());
 
     let app = api::router(state);
     let listener = tokio::net::TcpListener::bind(&config.listen_addr)
