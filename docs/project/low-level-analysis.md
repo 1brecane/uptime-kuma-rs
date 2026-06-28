@@ -156,7 +156,7 @@ rather than being forced into one store.
 ```rust
 #[async_trait]
 pub trait Cache: Send + Sync {
-    async fn get_snapshot(&self) -> Option<Snapshot>;
+    async fn get_snapshot(&self) -> Option<Arc<Snapshot>>;
     async fn put_snapshot(&self, snap: Snapshot) -> Result<(), AppError>;
 }
 ```
