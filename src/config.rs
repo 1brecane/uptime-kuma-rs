@@ -56,8 +56,8 @@ impl Config {
 
         Figment::new()
             .merge(Toml::file("config.toml"))
-            .merge(Env::raw())
+            .merge(Env::raw().split(","))
             .extract()
-            .map_err(|e| AppError::Cache(format!("config load failed: {e}")))
+            .map_err(|e| AppError::Config(format!("config load failed: {e}")))
     }
 }

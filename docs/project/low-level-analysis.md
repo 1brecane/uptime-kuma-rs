@@ -58,14 +58,14 @@ src/
 pub enum MonitorStatus { Up, Down, Pending, Maintenance }
 
 pub struct Monitor {
-    pub id: u64,
+    pub id: i64,             // i64 — SQLite/sqlx has no u64 codec; ids are small positive integers
     pub name: String,
     pub status: MonitorStatus,
     pub latency_ms: Option<u32>,   // None when down / unknown
 }
 
 pub struct UptimeWindow {
-    pub monitor_id: u64,
+    pub monitor_id: i64,     // i64 — SQLite/sqlx has no u64 codec; ids are small positive integers
     pub uptime_24h: f64,
     pub uptime_7d: f64,
     pub uptime_30d: f64,
@@ -77,9 +77,10 @@ pub struct UptimeWindow {
 }
 
 pub struct Incident {
-    pub monitor_id: u64,
+    pub monitor_id: i64,     // i64 — SQLite/sqlx has no u64 codec; ids are small positive integers
     pub started_at: DateTime<Utc>,
     pub resolved_at: Option<DateTime<Utc>>,  // None while ongoing
+    /// Denormalized convenience field: always set together with resolved_at (None while ongoing).
     pub duration_seconds: Option<u64>,
 }
 ```
@@ -156,7 +157,7 @@ rather than being forced into one store.
 #[async_trait]
 pub trait Cache: Send + Sync {
     async fn get_snapshot(&self) -> Option<Snapshot>;
-    async fn put_snapshot(&self, snap: Snapshot);
+    async fn put_snapshot(&self, snap: Snapshot) -> Result<(), AppError>;
 }
 ```
 
@@ -181,7 +182,7 @@ history must be accumulated locally.
 pub trait HeartbeatStore: Send + Sync {
     async fn record_beats(&self, beats: &[Beat]) -> Result<(), AppError>;
     /// Returns the uptime ratio AND the data coverage of the window (history span / window).
-    async fn uptime(&self, monitor_id: u64, window: Window) -> Result<UptimeResult, AppError>;
+    async fn uptime(&self, monitor_id: i64, window: Window) -> Result<UptimeResult, AppError>;
     async fn incidents(&self, since: DateTime<Utc>) -> Result<Vec<Incident>, AppError>;
 }
 // UptimeResult { ratio: f64, coverage: f64 } — coverage feeds UptimeWindow.coverage_* (§3, §11).

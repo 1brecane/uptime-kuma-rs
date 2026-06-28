@@ -18,6 +18,9 @@ pub enum AppError {
     #[error("storage error: {0}")]
     Store(String),
 
+    #[error("config error: {0}")]
+    Config(String),
+
     #[error("unauthorized")]
     Unauthorized,
 
@@ -31,7 +34,7 @@ impl IntoResponse for AppError {
             AppError::Unauthorized => StatusCode::UNAUTHORIZED,
             AppError::NoSnapshot => StatusCode::SERVICE_UNAVAILABLE,
             AppError::Upstream(_) => StatusCode::BAD_GATEWAY,
-            AppError::Parse(_) | AppError::Cache(_) | AppError::Store(_) => {
+            AppError::Parse(_) | AppError::Cache(_) | AppError::Store(_) | AppError::Config(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }
         };

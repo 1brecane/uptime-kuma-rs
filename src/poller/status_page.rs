@@ -7,6 +7,10 @@ pub struct StatusPageClient {
 }
 
 impl StatusPageClient {
+    pub fn new(base_url: String, slug: String, http: reqwest::Client) -> Self {
+        todo!("construct StatusPageClient")
+    }
+
     /// Fetch current heartbeats + 24h uptime and build a snapshot.
     pub async fn fetch(&self) -> Result<Snapshot, AppError> {
         todo!("GET /api/status-page/heartbeat/:slug and map into Snapshot")
