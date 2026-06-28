@@ -15,7 +15,8 @@ pub enum MonitorStatus {
 /// Current status and latency of a single monitor (public API shape).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Monitor {
-    pub id: u64,
+    /// i64 — SQLite/sqlx has no u64 codec; ids are small positive integers.
+    pub id: i64,
     pub name: String,
     pub status: MonitorStatus,
     /// `None` when down / unknown.
@@ -25,7 +26,8 @@ pub struct Monitor {
 /// Uptime ratios over standard windows, with per-window data coverage (see low-level §3, §11).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UptimeWindow {
-    pub monitor_id: u64,
+    /// i64 — SQLite/sqlx has no u64 codec; ids are small positive integers.
+    pub monitor_id: i64,
     pub uptime_24h: f64,
     pub uptime_7d: f64,
     pub uptime_30d: f64,
@@ -37,10 +39,12 @@ pub struct UptimeWindow {
 /// A period during which a monitor was down (derived locally; see low-level §4).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Incident {
-    pub monitor_id: u64,
+    /// i64 — SQLite/sqlx has no u64 codec; ids are small positive integers.
+    pub monitor_id: i64,
     pub started_at: DateTime<Utc>,
     /// `None` while the incident is ongoing.
     pub resolved_at: Option<DateTime<Utc>>,
+    /// Denormalized convenience field: always set together with resolved_at (None while ongoing).
     pub duration_seconds: Option<u64>,
 }
 
