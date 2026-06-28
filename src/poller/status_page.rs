@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
+use crate::error::AppError;
 use crate::model::{Monitor, MonitorStatus};
 
 // --- Internal DTOs: deserialize the raw status-page JSON. Never leave this module. ---
@@ -76,22 +77,48 @@ pub(crate) fn map_monitors(config: &StatusPageConfigDto, heartbeat: &HeartbeatDt
     monitors
 }
 
-use crate::error::AppError;
-use crate::model::Snapshot;
-
-/// Primary data source: the public status-page JSON endpoints (low-level §4). No auth required.
+/// Primary data source client: the public status-page JSON endpoints (low-level §4). No auth.
 pub struct StatusPageClient {
-    // Will hold base URL, slug, and a shared reqwest client.
+    base_url: String,
+    slug: String,
+    http: reqwest::Client,
 }
 
 impl StatusPageClient {
     pub fn new(base_url: String, slug: String, http: reqwest::Client) -> Self {
-        todo!("construct StatusPageClient")
+        Self {
+            base_url,
+            slug,
+            http,
+        }
     }
 
-    /// Fetch current heartbeats + 24h uptime and build a snapshot.
-    pub async fn fetch(&self) -> Result<Snapshot, AppError> {
-        todo!("GET /api/status-page/heartbeat/:slug and map into Snapshot")
+    /// Fetch both status-page endpoints and map them into the domain monitors.
+    pub async fn fetch(&self) -> Result<Vec<Monitor>, AppError> {
+        let config_url = format!("{}/api/status-page/{}", self.base_url, self.slug);
+        let heartbeat_url = format!("{}/api/status-page/heartbeat/{}", self.base_url, self.slug);
+
+        let config: StatusPageConfigDto = self
+            .http
+            .get(&config_url)
+            .send()
+            .await
+            .map_err(|e| AppError::Upstream(e.to_string()))?
+            .json()
+            .await
+            .map_err(|e| AppError::Parse(e.to_string()))?;
+
+        let heartbeat: HeartbeatDto = self
+            .http
+            .get(&heartbeat_url)
+            .send()
+            .await
+            .map_err(|e| AppError::Upstream(e.to_string()))?
+            .json()
+            .await
+            .map_err(|e| AppError::Parse(e.to_string()))?;
+
+        Ok(map_monitors(&config, &heartbeat))
     }
 }
 
