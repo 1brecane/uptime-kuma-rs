@@ -8,39 +8,39 @@ use crate::model::{Monitor, MonitorStatus};
 // --- Internal DTOs: deserialize the raw status-page JSON. Never leave this module. ---
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct StatusPageConfigDto {
+struct StatusPageConfigDto {
     #[serde(rename = "publicGroupList")]
-    pub(crate) public_group_list: Vec<GroupDto>,
+    public_group_list: Vec<GroupDto>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct GroupDto {
-    pub(crate) name: String,
+struct GroupDto {
+    name: String,
     #[serde(rename = "monitorList")]
-    pub(crate) monitor_list: Vec<MonitorDto>,
+    monitor_list: Vec<MonitorDto>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct MonitorDto {
-    pub(crate) id: i64,
-    pub(crate) name: String,
+struct MonitorDto {
+    id: i64,
+    name: String,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct HeartbeatDto {
+struct HeartbeatDto {
     #[serde(rename = "heartbeatList")]
-    pub(crate) heartbeat_list: HashMap<String, Vec<BeatDto>>,
+    heartbeat_list: HashMap<String, Vec<BeatDto>>,
 }
 
 #[derive(Debug, Deserialize)]
-pub(crate) struct BeatDto {
-    pub(crate) status: u8,
-    pub(crate) ping: Option<f64>,
+struct BeatDto {
+    status: u8,
+    ping: Option<f64>,
 }
 
 /// Join config (names + groups) and heartbeat (status + latency) into domain `Monitor`s.
 /// "Latest" status is the LAST beat in each list (beats are in ascending time order).
-pub(crate) fn map_monitors(config: &StatusPageConfigDto, heartbeat: &HeartbeatDto) -> Vec<Monitor> {
+fn map_monitors(config: &StatusPageConfigDto, heartbeat: &HeartbeatDto) -> Vec<Monitor> {
     let mut monitors = Vec::new();
     for group in &config.public_group_list {
         for m in &group.monitor_list {
@@ -61,7 +61,7 @@ pub(crate) fn map_monitors(config: &StatusPageConfigDto, heartbeat: &HeartbeatDt
             };
 
             let latency_ms = match (status, last_beat) {
-                (MonitorStatus::Up, Some(b)) => b.ping.map(|p| p as u32),
+                (MonitorStatus::Up, Some(b)) => b.ping.map(|p| p.round() as u32),
                 _ => None,
             };
 
@@ -98,25 +98,31 @@ impl StatusPageClient {
         let config_url = format!("{}/api/status-page/{}", self.base_url, self.slug);
         let heartbeat_url = format!("{}/api/status-page/heartbeat/{}", self.base_url, self.slug);
 
-        let config: StatusPageConfigDto = self
+        let resp = self
             .http
             .get(&config_url)
             .send()
             .await
-            .map_err(|e| AppError::Upstream(e.to_string()))?
-            .json()
+            .map_err(|e| AppError::Upstream(e.to_string()))?;
+        let bytes = resp
+            .bytes()
             .await
-            .map_err(|e| AppError::Parse(e.to_string()))?;
+            .map_err(|e| AppError::Upstream(e.to_string()))?;
+        let config: StatusPageConfigDto =
+            serde_json::from_slice(&bytes).map_err(|e| AppError::Parse(e.to_string()))?;
 
-        let heartbeat: HeartbeatDto = self
+        let resp = self
             .http
             .get(&heartbeat_url)
             .send()
             .await
-            .map_err(|e| AppError::Upstream(e.to_string()))?
-            .json()
+            .map_err(|e| AppError::Upstream(e.to_string()))?;
+        let bytes = resp
+            .bytes()
             .await
-            .map_err(|e| AppError::Parse(e.to_string()))?;
+            .map_err(|e| AppError::Upstream(e.to_string()))?;
+        let heartbeat: HeartbeatDto =
+            serde_json::from_slice(&bytes).map_err(|e| AppError::Parse(e.to_string()))?;
 
         Ok(map_monitors(&config, &heartbeat))
     }

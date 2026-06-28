@@ -8,7 +8,7 @@ use crate::state::AppState;
 /// `GET /api/monitors` — current status and latency of each monitor. Served from cache (low-level §7).
 pub async fn handler(State(state): State<AppState>) -> Result<Json<Vec<Monitor>>, AppError> {
     match state.cache.get_snapshot().await {
-        Some(snapshot) => Ok(Json(snapshot.monitors)),
+        Some(snapshot) => Ok(Json(snapshot.monitors.clone())),
         None => Err(AppError::NoSnapshot),
     }
 }
