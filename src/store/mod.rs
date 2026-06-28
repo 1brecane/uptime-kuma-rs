@@ -9,7 +9,8 @@ pub mod sqlite;
 /// A single recorded heartbeat to be persisted (low-level §5b).
 #[derive(Debug, Clone)]
 pub struct Beat {
-    pub monitor_id: u64,
+    /// i64 — SQLite/sqlx has no u64 codec; ids are small positive integers.
+    pub monitor_id: i64,
     pub time: DateTime<Utc>,
     pub status: MonitorStatus,
     pub ping_ms: Option<u32>,
@@ -34,6 +35,6 @@ pub struct UptimeResult {
 #[async_trait]
 pub trait HeartbeatStore: Send + Sync {
     async fn record_beats(&self, beats: &[Beat]) -> Result<(), AppError>;
-    async fn uptime(&self, monitor_id: u64, window: Window) -> Result<UptimeResult, AppError>;
+    async fn uptime(&self, monitor_id: i64, window: Window) -> Result<UptimeResult, AppError>;
     async fn incidents(&self, since: DateTime<Utc>) -> Result<Vec<Incident>, AppError>;
 }

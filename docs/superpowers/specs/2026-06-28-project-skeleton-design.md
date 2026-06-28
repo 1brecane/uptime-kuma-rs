@@ -95,7 +95,9 @@ src/
 - **`model.rs`** — the public domain types from low-level analysis §3: `MonitorStatus`,
   `Monitor`, `UptimeWindow`, `Incident`, plus the `Snapshot` bundle from §5a
   (`Vec<Monitor>`, `Vec<UptimeWindow>`, `Vec<Incident>`, `last_updated: DateTime<Utc>`).
-  All with `serde` derives.
+  All with `serde` derives. Monitor id fields (`Monitor.id`, `UptimeWindow.monitor_id`,
+  `Incident.monitor_id`) are `i64` — SQLite/sqlx has no u64 codec; ids are small positive
+  integers. `duration_seconds` stays `Option<u64>` (it's a duration, not an id).
 - **`error.rs`** — `AppError` enum (`thiserror`) covering upstream-fetch, parse, cache, and
   auth failures, with an `axum::response::IntoResponse` impl mapping variants to status codes
   (401 auth, 503 no-snapshot, 502 upstream) per §9.
@@ -103,9 +105,11 @@ src/
   (env-first + optional TOML overlay).
 - **`state.rs`** — `AppState` struct (§6): `Arc<dyn Cache>`, `Arc<dyn HeartbeatStore>`,
   `Arc<Config>`, `reqwest::Client`. Derives `Clone`.
-- **`cache/mod.rs`** — the `Cache` trait (§5a): `get_snapshot`, `put_snapshot`.
+- **`cache/mod.rs`** — the `Cache` trait (§5a): `get_snapshot`, `put_snapshot` (returns
+  `Result<(), AppError>` — fallible so Redis and other impls can propagate errors).
 - **`store/mod.rs`** — the `HeartbeatStore` trait (§5b): `record_beats`, `uptime`, `incidents`,
-  plus supporting types (`Beat`, `Window`, `UptimeResult`).
+  plus supporting types (`Beat`, `Window`, `UptimeResult`). Monitor id fields (`Beat.monitor_id`,
+  `uptime` parameter) are `i64` — SQLite/sqlx has no u64 codec; ids are small positive integers.
 
 ### Stubbed (`todo!()` / `unimplemented!()`)
 
