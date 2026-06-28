@@ -1,0 +1,3 @@
+-- Placeholder schema for uptime-kuma-rs heartbeat history.
+-- Real tables (heartbeats, indexes, retention) are defined in the store implementation plan.
+-- See docs/project/low-level-analysis.md §5b.
