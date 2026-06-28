@@ -2,6 +2,7 @@ mod cache;
 mod config;
 mod error;
 mod model;
+mod poller;
 mod state;
 mod store;
 
