@@ -23,8 +23,7 @@ use crate::store::sqlite::SqliteStore;
 async fn main() {
     tracing_subscriber::fmt()
         .with_env_filter(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info".into()),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| "info".into()),
         )
         .init();
 
@@ -34,8 +33,11 @@ async fn main() {
     let config = Arc::new(Config::load().expect("failed to load config"));
 
     let cache: Arc<dyn cache::Cache> = Arc::new(MemoryCache::new());
-    let store: Arc<dyn store::HeartbeatStore> =
-        Arc::new(SqliteStore::connect(&config.database_url).await.expect("store connect"));
+    let store: Arc<dyn store::HeartbeatStore> = Arc::new(
+        SqliteStore::connect(&config.database_url)
+            .await
+            .expect("store connect"),
+    );
 
     let state = AppState {
         cache,
