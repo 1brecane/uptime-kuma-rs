@@ -17,7 +17,7 @@ use std::sync::Arc;
 use crate::cache::memory::MemoryCache;
 use crate::config::Config;
 use crate::state::AppState;
-use crate::store::sqlite::SqliteStore;
+use crate::store::noop::NoopStore;
 
 #[tokio::main]
 async fn main() {
@@ -27,23 +27,21 @@ async fn main() {
         )
         .init();
 
-    // NOTE: skeleton wiring. `Config::load`, the cache/store constructors, the poller, and the
-    // server bind are real call sites but their bodies are still `todo!()` — running this will
-    // panic at the first stub. Later plans replace the stubs; the shape here is the target.
     let config = Arc::new(Config::load().expect("failed to load config"));
 
     let cache: Arc<dyn cache::Cache> = Arc::new(MemoryCache::new());
-    let store: Arc<dyn store::HeartbeatStore> = Arc::new(
-        SqliteStore::connect(&config.database_url)
-            .await
-            .expect("store connect"),
-    );
+    let store: Arc<dyn store::HeartbeatStore> = Arc::new(NoopStore::new());
+
+    let http = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .expect("failed to build HTTP client");
 
     let state = AppState {
         cache,
         store,
         config: config.clone(),
-        http: reqwest::Client::new(),
+        http,
     };
 
     let _poll_handle = poller::spawn(state.clone());
