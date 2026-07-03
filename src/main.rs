@@ -17,7 +17,7 @@ use std::sync::Arc;
 use crate::cache::memory::MemoryCache;
 use crate::config::Config;
 use crate::state::AppState;
-use crate::store::noop::NoopStore;
+use crate::store::sqlite::SqliteStore;
 
 #[tokio::main]
 async fn main() {
@@ -30,7 +30,11 @@ async fn main() {
     let config = Arc::new(Config::load().expect("failed to load config"));
 
     let cache: Arc<dyn cache::Cache> = Arc::new(MemoryCache::new());
-    let store: Arc<dyn store::HeartbeatStore> = Arc::new(NoopStore::new());
+    let store: Arc<dyn store::HeartbeatStore> = Arc::new(
+        SqliteStore::connect(&config.database_url)
+            .await
+            .expect("failed to connect to SQLite store"),
+    );
 
     let http = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
