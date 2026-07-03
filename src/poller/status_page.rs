@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 
 use crate::error::AppError;
 use crate::model::{Monitor, MonitorStatus};
+use crate::store::Beat;
 
 // --- Internal DTOs: deserialize the raw status-page JSON. Never leave this module. ---
 
@@ -30,12 +32,25 @@ struct MonitorDto {
 struct HeartbeatDto {
     #[serde(rename = "heartbeatList")]
     heartbeat_list: HashMap<String, Vec<BeatDto>>,
+    #[serde(rename = "uptimeList", default)]
+    uptime_list: HashMap<String, f64>,
 }
 
 #[derive(Debug, Deserialize)]
 struct BeatDto {
     status: u8,
     ping: Option<f64>,
+    time: String,
+}
+
+fn status_from_code(code: u8) -> MonitorStatus {
+    match code {
+        0 => MonitorStatus::Down,
+        1 => MonitorStatus::Up,
+        2 => MonitorStatus::Pending,
+        3 => MonitorStatus::Maintenance,
+        _ => MonitorStatus::Pending,
+    }
 }
 
 /// Join config (names + groups) and heartbeat (status + latency) into domain `Monitor`s.
@@ -50,13 +65,7 @@ fn map_monitors(config: &StatusPageConfigDto, heartbeat: &HeartbeatDto) -> Vec<M
                 .and_then(|beats| beats.last());
 
             let status = match last_beat {
-                Some(b) => match b.status {
-                    0 => MonitorStatus::Down,
-                    1 => MonitorStatus::Up,
-                    2 => MonitorStatus::Pending,
-                    3 => MonitorStatus::Maintenance,
-                    _ => MonitorStatus::Pending,
-                },
+                Some(b) => status_from_code(b.status),
                 None => MonitorStatus::Pending,
             };
 
@@ -77,6 +86,55 @@ fn map_monitors(config: &StatusPageConfigDto, heartbeat: &HeartbeatDto) -> Vec<M
     monitors
 }
 
+/// Parse Uptime Kuma's `"%Y-%m-%d %H:%M:%S%.f"` (no timezone; treated as UTC).
+fn parse_kuma_time(s: &str) -> Option<DateTime<Utc>> {
+    chrono::NaiveDateTime::parse_from_str(s, "%Y-%m-%d %H:%M:%S%.f")
+        .ok()
+        .map(|ndt| ndt.and_utc())
+}
+
+/// All heartbeats across all monitors, mapped to domain `Beat`s. Unparseable rows are skipped.
+fn extract_beats(heartbeat: &HeartbeatDto) -> Vec<Beat> {
+    let mut beats = Vec::new();
+    for (id_str, list) in &heartbeat.heartbeat_list {
+        let Ok(monitor_id) = id_str.parse::<i64>() else {
+            continue;
+        };
+        for b in list {
+            let Some(time) = parse_kuma_time(&b.time) else {
+                continue;
+            };
+            beats.push(Beat {
+                monitor_id,
+                time,
+                status: status_from_code(b.status),
+                ping_ms: b.ping.map(|p| p.round() as u32),
+            });
+        }
+    }
+    beats
+}
+
+/// The 24h uptime ratio per monitor id, from `uptimeList` keys shaped `"<id>_24"`.
+fn extract_uptime_24h(heartbeat: &HeartbeatDto) -> HashMap<i64, f64> {
+    let mut map = HashMap::new();
+    for (key, value) in &heartbeat.uptime_list {
+        if let Some(prefix) = key.strip_suffix("_24") {
+            if let Ok(id) = prefix.parse::<i64>() {
+                map.insert(id, *value);
+            }
+        }
+    }
+    map
+}
+
+/// Everything one poll produces from the status-page endpoints.
+pub struct PolledData {
+    pub monitors: Vec<Monitor>,
+    pub beats: Vec<Beat>,
+    pub uptime_24h: HashMap<i64, f64>,
+}
+
 /// Primary data source client: the public status-page JSON endpoints (low-level §4). No auth.
 pub struct StatusPageClient {
     base_url: String,
@@ -93,8 +151,8 @@ impl StatusPageClient {
         }
     }
 
-    /// Fetch both status-page endpoints and map them into the domain monitors.
-    pub async fn fetch(&self) -> Result<Vec<Monitor>, AppError> {
+    /// Fetch both status-page endpoints and map them into domain data.
+    pub async fn fetch(&self) -> Result<PolledData, AppError> {
         let config_url = format!("{}/api/status-page/{}", self.base_url, self.slug);
         let heartbeat_url = format!("{}/api/status-page/heartbeat/{}", self.base_url, self.slug);
 
@@ -124,7 +182,11 @@ impl StatusPageClient {
         let heartbeat: HeartbeatDto =
             serde_json::from_slice(&bytes).map_err(|e| AppError::Parse(e.to_string()))?;
 
-        Ok(map_monitors(&config, &heartbeat))
+        Ok(PolledData {
+            monitors: map_monitors(&config, &heartbeat),
+            beats: extract_beats(&heartbeat),
+            uptime_24h: extract_uptime_24h(&heartbeat),
+        })
     }
 }
 
@@ -142,6 +204,37 @@ mod tests {
         ))
         .expect("heartbeat fixture parses");
         (config, heartbeat)
+    }
+
+    #[test]
+    fn parses_kuma_utc_time() {
+        let t = parse_kuma_time("2026-06-28 15:59:49.191").unwrap();
+        assert_eq!(t.to_rfc3339(), "2026-06-28T15:59:49.191+00:00");
+    }
+
+    #[test]
+    fn rejects_bad_time() {
+        assert!(parse_kuma_time("not a time").is_none());
+    }
+
+    #[test]
+    fn extracts_beats_from_fixture() {
+        let (_config, heartbeat) = load();
+        let beats = extract_beats(&heartbeat);
+        assert_eq!(beats.len(), 6); // ids 1(2) + 2(2) + 3(1) + 5(1)
+        let m1: Vec<_> = beats.iter().filter(|b| b.monitor_id == 1).collect();
+        assert_eq!(m1.len(), 2);
+        assert!(m1
+            .iter()
+            .any(|b| b.status == MonitorStatus::Up && b.ping_ms == Some(7)));
+    }
+
+    #[test]
+    fn extracts_uptime_24h_from_fixture() {
+        let (_config, heartbeat) = load();
+        let up = extract_uptime_24h(&heartbeat);
+        assert_eq!(up.len(), 4);
+        assert_eq!(up.get(&2).copied(), Some(0.98));
     }
 
     #[test]
