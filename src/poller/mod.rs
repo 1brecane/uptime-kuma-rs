@@ -19,6 +19,7 @@ async fn build_uptime(store: &dyn HeartbeatStore, data: &PolledData) -> Vec<Upti
         let week = store
             .uptime(m.id, Window::Week)
             .await
+            .inspect_err(|e| tracing::warn!(monitor_id = m.id, "uptime week query failed: {e}"))
             .unwrap_or(UptimeResult {
                 ratio: 0.0,
                 coverage: 0.0,
@@ -26,6 +27,7 @@ async fn build_uptime(store: &dyn HeartbeatStore, data: &PolledData) -> Vec<Upti
         let month = store
             .uptime(m.id, Window::Month)
             .await
+            .inspect_err(|e| tracing::warn!(monitor_id = m.id, "uptime month query failed: {e}"))
             .unwrap_or(UptimeResult {
                 ratio: 0.0,
                 coverage: 0.0,

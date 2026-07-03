@@ -22,7 +22,7 @@ impl SqliteStore {
             .map_err(|e| AppError::Store(e.to_string()))?
             .create_if_missing(true);
         let pool = SqlitePoolOptions::new()
-            .max_connections(5)
+            .max_connections(2)
             .connect_with(opts)
             .await
             .map_err(|e| AppError::Store(e.to_string()))?;
@@ -111,12 +111,14 @@ impl HeartbeatStore for SqliteStore {
         let total: i64 = row.get("total");
         let up: i64 = row.get("up");
 
-        let oldest: Option<String> =
-            sqlx::query_scalar("SELECT MIN(time) FROM heartbeats WHERE monitor_id = ?1")
-                .bind(monitor_id)
-                .fetch_one(&self.pool)
-                .await
-                .map_err(|e| AppError::Store(e.to_string()))?;
+        let oldest: Option<String> = sqlx::query_scalar(
+            "SELECT MIN(time) FROM heartbeats WHERE monitor_id = ?1 AND time >= ?2",
+        )
+        .bind(monitor_id)
+        .bind(&cutoff)
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| AppError::Store(e.to_string()))?;
 
         let ratio = if total == 0 {
             0.0

@@ -108,7 +108,7 @@ fn extract_beats(heartbeat: &HeartbeatDto) -> Vec<Beat> {
                 monitor_id,
                 time,
                 status: status_from_code(b.status),
-                ping_ms: b.ping.map(|p| p.round() as u32),
+                ping_ms: b.ping.filter(|&p| p > 0.0).map(|p| p.round() as u32),
             });
         }
     }

@@ -78,7 +78,9 @@ async fn prune(&self, older_than: DateTime<Utc>) -> Result<(), AppError>;   // N
   - `cutoff = now - window_duration`.
   - `total = COUNT(*)`, `up = COUNT(status = 1)` for that monitor with `time >= cutoff`.
   - `ratio = if total == 0 { 0.0 } else { up as f64 / total as f64 }`.
-  - `oldest = MIN(time)` for that monitor (overall). `covered = now - max(oldest, cutoff)`;
+  - `oldest = MIN(time)` for that monitor **within the window** (`time >= cutoff`). This means a
+    window that has no in-window beats reports `coverage = 0.0` even if older rows still exist in
+    retention. `covered = now - max(oldest, cutoff)`;
     `coverage = clamp(covered / window_duration, 0.0..=1.0)`; `0.0` if no beats.
 - **`prune(older_than)`**: `DELETE FROM heartbeats WHERE time < ?`.
 - **`incidents(since)`**: returns `Ok(vec![])` for now — real derivation is the next slice. (The
