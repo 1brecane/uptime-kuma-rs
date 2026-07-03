@@ -32,4 +32,8 @@ impl HeartbeatStore for NoopStore {
     async fn incidents(&self, _since: DateTime<Utc>) -> Result<Vec<Incident>, AppError> {
         Ok(Vec::new())
     }
+
+    async fn prune(&self, _older_than: DateTime<Utc>) -> Result<(), AppError> {
+        Ok(())
+    }
 }

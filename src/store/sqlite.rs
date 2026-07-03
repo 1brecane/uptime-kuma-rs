@@ -30,4 +30,8 @@ impl HeartbeatStore for SqliteStore {
     async fn incidents(&self, since: DateTime<Utc>) -> Result<Vec<Incident>, AppError> {
         todo!("reconstruct incidents from stored history")
     }
+
+    async fn prune(&self, _older_than: DateTime<Utc>) -> Result<(), AppError> {
+        todo!("implemented in Task 2")
+    }
 }

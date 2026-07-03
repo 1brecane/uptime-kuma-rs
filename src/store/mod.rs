@@ -25,6 +25,17 @@ pub enum Window {
     Month,
 }
 
+impl Window {
+    /// Length of the window in days.
+    pub fn days(self) -> i64 {
+        match self {
+            Window::Day => 1,
+            Window::Week => 7,
+            Window::Month => 30,
+        }
+    }
+}
+
 /// Result of an uptime query: the ratio plus how much of the window is actually backed by data.
 #[derive(Debug, Clone, Copy)]
 pub struct UptimeResult {
@@ -38,4 +49,5 @@ pub trait HeartbeatStore: Send + Sync {
     async fn record_beats(&self, beats: &[Beat]) -> Result<(), AppError>;
     async fn uptime(&self, monitor_id: i64, window: Window) -> Result<UptimeResult, AppError>;
     async fn incidents(&self, since: DateTime<Utc>) -> Result<Vec<Incident>, AppError>;
+    async fn prune(&self, older_than: DateTime<Utc>) -> Result<(), AppError>;
 }
