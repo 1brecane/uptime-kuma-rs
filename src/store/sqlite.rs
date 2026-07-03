@@ -2,8 +2,8 @@ use std::str::FromStr;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 use sqlx::Row;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions};
 
 use crate::error::AppError;
 use crate::model::{Incident, MonitorStatus};
@@ -50,15 +50,17 @@ fn status_to_i64(s: MonitorStatus) -> i64 {
 
 /// Ensure the parent directory of a file-based SQLite URL exists.
 fn ensure_parent_dir(database_url: &str) -> Result<(), AppError> {
-    let path = database_url.strip_prefix("sqlite://").unwrap_or(database_url);
+    let path = database_url
+        .strip_prefix("sqlite://")
+        .unwrap_or(database_url);
     let path = path.split('?').next().unwrap_or(path);
     if path.is_empty() || path.starts_with(':') {
         return Ok(()); // e.g. sqlite::memory:
     }
-    if let Some(parent) = std::path::Path::new(path).parent() {
-        if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent).map_err(|e| AppError::Store(e.to_string()))?;
-        }
+    if let Some(parent) = std::path::Path::new(path).parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).map_err(|e| AppError::Store(e.to_string()))?;
     }
     Ok(())
 }
@@ -84,7 +86,9 @@ impl HeartbeatStore for SqliteStore {
             .await
             .map_err(|e| AppError::Store(e.to_string()))?;
         }
-        tx.commit().await.map_err(|e| AppError::Store(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| AppError::Store(e.to_string()))?;
         Ok(())
     }
 

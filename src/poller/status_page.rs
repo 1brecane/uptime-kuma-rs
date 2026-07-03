@@ -119,10 +119,10 @@ fn extract_beats(heartbeat: &HeartbeatDto) -> Vec<Beat> {
 fn extract_uptime_24h(heartbeat: &HeartbeatDto) -> HashMap<i64, f64> {
     let mut map = HashMap::new();
     for (key, value) in &heartbeat.uptime_list {
-        if let Some(prefix) = key.strip_suffix("_24") {
-            if let Ok(id) = prefix.parse::<i64>() {
-                map.insert(id, *value);
-            }
+        if let Some(prefix) = key.strip_suffix("_24")
+            && let Ok(id) = prefix.parse::<i64>()
+        {
+            map.insert(id, *value);
         }
     }
     map
@@ -224,9 +224,10 @@ mod tests {
         assert_eq!(beats.len(), 6); // ids 1(2) + 2(2) + 3(1) + 5(1)
         let m1: Vec<_> = beats.iter().filter(|b| b.monitor_id == 1).collect();
         assert_eq!(m1.len(), 2);
-        assert!(m1
-            .iter()
-            .any(|b| b.status == MonitorStatus::Up && b.ping_ms == Some(7)));
+        assert!(
+            m1.iter()
+                .any(|b| b.status == MonitorStatus::Up && b.ping_ms == Some(7))
+        );
     }
 
     #[test]

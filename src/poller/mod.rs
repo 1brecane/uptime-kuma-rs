@@ -19,11 +19,17 @@ async fn build_uptime(store: &dyn HeartbeatStore, data: &PolledData) -> Vec<Upti
         let week = store
             .uptime(m.id, Window::Week)
             .await
-            .unwrap_or(UptimeResult { ratio: 0.0, coverage: 0.0 });
+            .unwrap_or(UptimeResult {
+                ratio: 0.0,
+                coverage: 0.0,
+            });
         let month = store
             .uptime(m.id, Window::Month)
             .await
-            .unwrap_or(UptimeResult { ratio: 0.0, coverage: 0.0 });
+            .unwrap_or(UptimeResult {
+                ratio: 0.0,
+                coverage: 0.0,
+            });
         windows.push(UptimeWindow {
             monitor_id: m.id,
             uptime_24h: data.uptime_24h.get(&m.id).copied().unwrap_or(0.0),
