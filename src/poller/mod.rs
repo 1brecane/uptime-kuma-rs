@@ -8,7 +8,6 @@ use crate::store::{HeartbeatStore, UptimeResult, Window};
 
 use self::status_page::{PolledData, StatusPageClient};
 
-pub mod incidents;
 pub mod prometheus;
 pub mod status_page;
 
@@ -65,10 +64,16 @@ pub fn spawn(state: AppState) -> tokio::task::JoinHandle<()> {
                         tracing::warn!("failed to record beats: {e}");
                     }
                     let uptime = build_uptime(state.store.as_ref(), &data).await;
+                    let incidents = state
+                        .store
+                        .incidents(Utc::now() - retention)
+                        .await
+                        .inspect_err(|e| tracing::warn!("incidents query failed: {e}"))
+                        .unwrap_or_default();
                     let snapshot = Snapshot {
                         monitors: data.monitors,
                         uptime,
-                        incidents: Vec::new(),
+                        incidents,
                         last_updated: Utc::now(),
                     };
                     if let Err(e) = state.cache.put_snapshot(snapshot).await {
