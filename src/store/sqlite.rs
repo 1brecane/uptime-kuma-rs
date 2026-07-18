@@ -141,8 +141,58 @@ impl HeartbeatStore for SqliteStore {
         Ok(UptimeResult { ratio, coverage })
     }
 
-    async fn incidents(&self, _since: DateTime<Utc>) -> Result<Vec<Incident>, AppError> {
-        Ok(Vec::new()) // implemented in the incidents slice
+    async fn incidents(&self, since: DateTime<Utc>) -> Result<Vec<Incident>, AppError> {
+        let rows = sqlx::query(
+            "WITH ordered AS ( \
+                SELECT monitor_id, time, status, \
+                       LAG(status) OVER (PARTITION BY monitor_id ORDER BY time) AS prev_status \
+                FROM heartbeats \
+             ) \
+             SELECT monitor_id, time, status \
+             FROM ordered \
+             WHERE (status = 0 AND (prev_status IS NULL OR prev_status != 0)) \
+                OR (prev_status = 0 AND status != 0) \
+             ORDER BY monitor_id, time",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| AppError::Store(e.to_string()))?;
+
+        let mut open: std::collections::HashMap<i64, DateTime<Utc>> =
+            std::collections::HashMap::new();
+        let mut incidents = Vec::new();
+        for row in rows {
+            let monitor_id: i64 = row.get("monitor_id");
+            let time_str: String = row.get("time");
+            let status: i64 = row.get("status");
+            let time = DateTime::parse_from_rfc3339(&time_str)
+                .map_err(|e| AppError::Store(e.to_string()))?
+                .with_timezone(&Utc);
+
+            if status == 0 {
+                open.insert(monitor_id, time);
+            } else if let Some(started_at) = open.remove(&monitor_id) {
+                let duration = (time - started_at).num_seconds().max(0) as u64;
+                incidents.push(Incident {
+                    monitor_id,
+                    started_at,
+                    resolved_at: Some(time),
+                    duration_seconds: Some(duration),
+                });
+            }
+        }
+        for (monitor_id, started_at) in open {
+            incidents.push(Incident {
+                monitor_id,
+                started_at,
+                resolved_at: None,
+                duration_seconds: None,
+            });
+        }
+
+        incidents.retain(|i| i.resolved_at.is_none_or(|r| r >= since));
+        incidents.sort_by_key(|i| std::cmp::Reverse(i.started_at));
+        Ok(incidents)
     }
 
     async fn prune(&self, older_than: DateTime<Utc>) -> Result<(), AppError> {
@@ -234,5 +284,143 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn closed_incident_has_started_resolved_and_duration() {
+        let (store, _dir) = new_store().await;
+        store
+            .record_beats(&[
+                beat(1, 30, MonitorStatus::Up),
+                beat(1, 20, MonitorStatus::Down),
+                beat(1, 10, MonitorStatus::Up),
+            ])
+            .await
+            .unwrap();
+
+        let incidents = store
+            .incidents(Utc::now() - Duration::hours(1))
+            .await
+            .unwrap();
+
+        assert_eq!(incidents.len(), 1);
+        let inc = &incidents[0];
+        assert_eq!(inc.monitor_id, 1);
+        assert!(inc.resolved_at.is_some());
+        assert_eq!(
+            inc.duration_seconds,
+            Some((inc.resolved_at.unwrap() - inc.started_at).num_seconds() as u64)
+        );
+        assert!((inc.resolved_at.unwrap() - inc.started_at).num_minutes() >= 9);
+    }
+
+    #[tokio::test]
+    async fn ongoing_incident_has_no_resolved_at() {
+        let (store, _dir) = new_store().await;
+        store
+            .record_beats(&[
+                beat(1, 30, MonitorStatus::Up),
+                beat(1, 20, MonitorStatus::Down),
+            ])
+            .await
+            .unwrap();
+
+        let incidents = store
+            .incidents(Utc::now() - Duration::hours(1))
+            .await
+            .unwrap();
+
+        assert_eq!(incidents.len(), 1);
+        assert_eq!(incidents[0].resolved_at, None);
+        assert_eq!(incidents[0].duration_seconds, None);
+    }
+
+    #[tokio::test]
+    async fn first_ever_beat_down_still_opens_an_incident() {
+        let (store, _dir) = new_store().await;
+        store
+            .record_beats(&[beat(1, 5, MonitorStatus::Down)])
+            .await
+            .unwrap();
+
+        let incidents = store
+            .incidents(Utc::now() - Duration::hours(1))
+            .await
+            .unwrap();
+
+        assert_eq!(incidents.len(), 1);
+        assert_eq!(incidents[0].resolved_at, None);
+    }
+
+    #[tokio::test]
+    async fn pending_and_maintenance_never_open_or_close_incidents() {
+        let (store, _dir) = new_store().await;
+        store
+            .record_beats(&[
+                beat(1, 40, MonitorStatus::Up),
+                beat(1, 30, MonitorStatus::Pending),
+                beat(1, 20, MonitorStatus::Maintenance),
+                beat(1, 10, MonitorStatus::Up),
+            ])
+            .await
+            .unwrap();
+
+        let incidents = store
+            .incidents(Utc::now() - Duration::hours(1))
+            .await
+            .unwrap();
+
+        assert_eq!(incidents.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn since_excludes_incidents_resolved_before_it_but_keeps_ongoing_ones() {
+        let (store, _dir) = new_store().await;
+        store
+            .record_beats(&[
+                // Monitor 1: resolved long ago — should be excluded by `since`.
+                beat(1, 500, MonitorStatus::Up),
+                beat(1, 490, MonitorStatus::Down),
+                beat(1, 480, MonitorStatus::Up),
+                // Monitor 2: still down — must be included regardless of `since`.
+                beat(2, 60, MonitorStatus::Up),
+                beat(2, 50, MonitorStatus::Down),
+            ])
+            .await
+            .unwrap();
+
+        let incidents = store
+            .incidents(Utc::now() - Duration::minutes(100))
+            .await
+            .unwrap();
+
+        assert_eq!(incidents.len(), 1);
+        assert_eq!(incidents[0].monitor_id, 2);
+    }
+
+    #[tokio::test]
+    async fn two_monitors_are_tracked_independently() {
+        let (store, _dir) = new_store().await;
+        store
+            .record_beats(&[
+                beat(1, 30, MonitorStatus::Up),
+                beat(1, 20, MonitorStatus::Down),
+                beat(1, 10, MonitorStatus::Up),
+                beat(2, 25, MonitorStatus::Down),
+                beat(2, 15, MonitorStatus::Up),
+            ])
+            .await
+            .unwrap();
+
+        let mut incidents = store
+            .incidents(Utc::now() - Duration::hours(1))
+            .await
+            .unwrap();
+        incidents.sort_by_key(|i| i.monitor_id);
+
+        assert_eq!(incidents.len(), 2);
+        assert_eq!(incidents[0].monitor_id, 1);
+        assert_eq!(incidents[1].monitor_id, 2);
+        assert!(incidents.iter().all(|i| i.resolved_at.is_some()));
     }
 }
