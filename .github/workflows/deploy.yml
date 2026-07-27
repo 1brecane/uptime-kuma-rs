@@ -1,0 +1,35 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: |
+          docker build \
+            -t uptime-kuma-rs:latest \
+            -t uptime-kuma-rs:${{ github.sha }} \
+            .
+
+      - name: Deploy container
+        run: |
+          docker stop uptime-kuma-rs 2>/dev/null || true
+          docker rm uptime-kuma-rs 2>/dev/null || true
+          docker run -d \
+            --name uptime-kuma-rs \
+            --restart unless-stopped \
+            -p 8088:8080 \
+            -v uptime-kuma-rs-data:/app/data \
+            -e KUMA_BASE_URL="${{ secrets.KUMA_BASE_URL }}" \
+            -e KUMA_STATUS_PAGE_SLUG="${{ secrets.KUMA_STATUS_PAGE_SLUG }}" \
+            -e RUST_LOG="info" \
+            uptime-kuma-rs:latest
+          docker image prune -f

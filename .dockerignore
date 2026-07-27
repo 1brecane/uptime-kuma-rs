@@ -1,0 +1,9 @@
+target
+data
+docs
+.git
+.env
+.claude
+.superpowers
+tests
+README.md
